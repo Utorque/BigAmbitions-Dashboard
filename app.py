@@ -1,23 +1,33 @@
 import pandas as pd
 import plotly.express as px
-from dash import Dash, html, dcc, Input, Output, State, callback_context
+from dash import Dash, html, dcc, Input, Output, State, no_update, callback_context
 import dash
 import dash_bootstrap_components as dbc
-
-companies_dict = None
-
-import pandas as pd
+from dash.exceptions import PreventUpdate
+import base64
+import io
 import re
+
+# Sidebar styling
+SIDEBAR_STYLE = {
+    "position": "fixed",
+    "top": 0,
+    "left": 0,
+    "bottom": 0,
+    "width": "300px",
+    "padding": "2rem 1rem",
+    "background-color": "#f8f9fa",
+    "overflow-y": "auto",
+}
+
+CONTENT_STYLE = {
+    "margin-left": "320px",
+    "padding": "2rem 1rem",
+}
 
 def get_companies(df):
     """
     Extract company names and return a dictionary mapping company names to their lowercase variants.
-    
-    Parameters:
-    df (pandas.DataFrame): DataFrame with transaction data
-    
-    Returns:
-    dict: Dictionary mapping company names to list containing lowercase variant
     """
     # Get revenue-generating companies first
     revenue_companies = set()
@@ -50,122 +60,90 @@ def get_companies(df):
         for company in all_companies
     }
 
-# Add custom CSS for the sidebar
-SIDEBAR_STYLE = {
-    "position": "fixed",
-    "top": 0,
-    "left": 0,
-    "bottom": 0,
-    "width": "300px",
-    "padding": "2rem 1rem",
-    "background-color": "#f8f9fa",
-    "overflow-y": "auto",  # Make sidebar scrollable
-}
-
-CONTENT_STYLE = {
-    "margin-left": "320px",
-    "padding": "2rem 1rem",
-}
-
-def load_and_process_data(csv_path):
-    try:
-        # Read CSV with specific columns
-        df = pd.read_csv(csv_path, 
-                        names=['Description', 'Day', 'Type', 'Amount', 'ID'],
-                        quotechar='"',
-                        encoding='utf-8')
-        
-        # Basic cleaning
-        df = df.apply(lambda x: x.str.strip() if isinstance(x, str) else x)
-        df['Day'] = pd.to_numeric(df['Day'])
-        df['Amount'] = pd.to_numeric(df['Amount'])
-        
-        # Add Income/Expense column
-        df['IncomeOrExpense'] = df['Amount'].apply(lambda x: 'Income' if x > 0 else 'Expense')
-        
-        # Make Amount absolute
-        df['Amount'] = df['Amount'].abs()
-        
-        # Add Company column with default 'Other'
-        df['Company'] = 'Other'
-        
-        global companies_dict
-        companies_dict = get_companies(df)
-        
-        # Categorize companies
-        for company, keywords in companies_dict.items():
-            mask = df['Description'].str.lower().str.contains('|'.join(keywords), case=False)
-            df.loc[mask, 'Company'] = company
-        
-        # Select and reorder final columns
-        df = df[['Description', 'Company', 'Day', 'Type', 'Amount', 'IncomeOrExpense']]
-        
-        return df
-        
-    except Exception as e:
-        print(f"Error loading CSV file: {str(e)}")
-        return None
-
-def create_app(df) -> Dash:
+def create_app() -> Dash:
     app = Dash(__name__, 
                external_stylesheets=[dbc.themes.BOOTSTRAP],
                title='Financial Analysis')
     
-    max_day = df['Day'].max()
-    min_day = df['Day'].min()
-    all_companies = sorted(df['Company'].unique())
-    all_types = sorted(df['Type'].unique())
+    # File upload component styling
+    upload_style = {
+        'width': '100%',
+        'height': '60px',
+        'lineHeight': '20px',
+        'borderWidth': '1px',
+        'borderStyle': 'dashed',
+        'borderRadius': '5px',
+        'textAlign': 'center',
+        'padding-top': '7px',
+        'backgroundColor': '#fafafa'
+    }
 
     # Create sidebar
     sidebar = html.Div([
         html.H2("Financial Dashboard", className="display-6 mb-4"),
+        
+        # Add upload component
+        dcc.Upload(
+            id='upload-data',
+            children=html.Div([
+                'Drag and Drop or Select Transactions.csv',
+                html.A('')
+            ]),
+            style=upload_style,
+            multiple=False
+        ),
+        html.Div(id='upload-status', className="mb-3"),
+        
         html.Hr(),
         
-        html.H6("Time Range", className="mt-4"),
-        dbc.ButtonGroup([
-            dbc.Button("Last Day", id="last-day-button", color="primary", size="sm", className="me-1"),
-            dbc.Button("Last Week", id="last-week-button", color="primary", size="sm", className="me-1"),
-            dbc.Button("All Time", id="all-time-button", color="primary", size="sm"),
-        ], className="mb-3 d-flex"),
-        
-        dbc.Card([
-            dbc.CardBody([
-                dcc.RangeSlider(
-                    id='day-range-slider',
-                    min=min_day,
-                    max=max_day,
-                    value=[min_day, max_day],
-                    marks={i: str(i) for i in range(min_day, max_day + 1, 5)},
-                    step=1
-                )
-            ])
-        ], className="mb-4"),
-        
-        html.H6("Companies"),
-        dbc.ButtonGroup([
-            dbc.Button("Select All", id="select-all-companies", color="primary", size="sm", className="me-1"),
-            dbc.Button("Unselect All", id="unselect-all-companies", color="primary", size="sm"),
-        ], className="mb-2 d-flex"),
-        dcc.Checklist(
-            id='company-filter',
-            options=[{'label': " " + comp, 'value': comp} for comp in all_companies],
-            value=all_companies,
-            className="mb-4",
-            labelStyle={'display': 'block', 'margin-bottom': '0.5rem'}
-        ),
-        
-        html.H6("Types"),
-        dbc.ButtonGroup([
-            dbc.Button("Select All", id="select-all-types", color="primary", size="sm", className="me-1"),
-            dbc.Button("Unselect All", id="unselect-all-types", color="primary", size="sm"),
-        ], className="mb-2 d-flex"),
-        dcc.Checklist(
-            id='type-filter',
-            options=[{'label': " " + type_, 'value': type_} for type_ in all_types],
-            value=all_types,
-            className="mb-4",
-            labelStyle={'display': 'block', 'margin-bottom': '0.5rem'}
-        ),
+        # Controls section - initially hidden
+        html.Div(id='sidebar-controls', style={'display': 'none'}, children=[
+            html.H6("Time Range", className="mt-4"),
+            dbc.ButtonGroup([
+                dbc.Button("Last Day", id="last-day-button", color="primary", size="sm", className="me-1"),
+                dbc.Button("Last Week", id="last-week-button", color="primary", size="sm", className="me-1"),
+                dbc.Button("All Time", id="all-time-button", color="primary", size="sm"),
+            ], className="mb-3 d-flex"),
+            
+            dbc.Card([
+                dbc.CardBody([
+                    dcc.RangeSlider(
+                        id='day-range-slider',
+                        min=0,
+                        max=1,
+                        value=[0, 1],
+                        marks={},
+                        step=1
+                    )
+                ])
+            ], className="mb-4"),
+            
+            html.H6("Companies"),
+            dbc.ButtonGroup([
+                dbc.Button("Select All", id="select-all-companies", color="primary", size="sm", className="me-1"),
+                dbc.Button("Unselect All", id="unselect-all-companies", color="primary", size="sm"),
+            ], className="mb-2 d-flex"),
+            dcc.Checklist(
+                id='company-filter',
+                options=[],
+                value=[],
+                className="mb-4",
+                labelStyle={'display': 'block', 'margin-bottom': '0.5rem'}
+            ),
+            
+            html.H6("Types"),
+            dbc.ButtonGroup([
+                dbc.Button("Select All", id="select-all-types", color="primary", size="sm", className="me-1"),
+                dbc.Button("Unselect All", id="unselect-all-types", color="primary", size="sm"),
+            ], className="mb-2 d-flex"),
+            dcc.Checklist(
+                id='type-filter',
+                options=[],
+                value=[],
+                className="mb-4",
+                labelStyle={'display': 'block', 'margin-bottom': '0.5rem'}
+            ),
+        ])
     ], style=SIDEBAR_STYLE)
 
     # Create main content
@@ -215,77 +193,29 @@ def create_app(df) -> Dash:
         ])
     ], style=CONTENT_STYLE)
 
-    app.layout = html.Div([sidebar, content])
-    
-    @app.callback(
-        Output('company-filter', 'value'),
-        [Input('select-all-companies', 'n_clicks'),
-         Input('unselect-all-companies', 'n_clicks')],
-        [State('company-filter', 'options')],
-        prevent_initial_call=True
-    )
-    def update_company_selection(select_clicks, unselect_clicks, options):
-        ctx = callback_context
-        if not ctx.triggered:
-            raise dash.exceptions.PreventUpdate
-            
-        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-        if button_id == "select-all-companies":
-            return [option['value'] for option in options]
-        else:
-            return []
+    app.layout = html.Div([
+        dcc.Store(id='stored-data'),  # Store for the processed DataFrame
+        sidebar,
+        content
+    ])
 
-    @app.callback(
-        Output('type-filter', 'value'),
-        [Input('select-all-types', 'n_clicks'),
-         Input('unselect-all-types', 'n_clicks')],
-        [State('type-filter', 'options')],
-        prevent_initial_call=True
-    )
-    def update_type_selection(select_clicks, unselect_clicks, options):
-        ctx = callback_context
-        if not ctx.triggered:
-            raise dash.exceptions.PreventUpdate
-            
-        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-        if button_id == "select-all-types":
-            return [option['value'] for option in options]
-        else:
-            return []
-
-    @app.callback(
-        Output('day-range-slider', 'value'),
-        [Input('last-day-button', 'n_clicks'),
-         Input('last-week-button', 'n_clicks'),
-         Input('all-time-button', 'n_clicks')],
-        prevent_initial_call=True
-    )
-    def update_range_slider(*args):
-        ctx = callback_context
-        if not ctx.triggered:
-            return [min_day, max_day]
-        
-        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-        
-        if button_id == 'last-day-button':
-            return [max_day - 1, max_day - 1]
-        elif button_id == 'last-week-button':
-            return [max(min_day, max_day - 7), max_day]
-        else:  # all-time-button
-            return [min_day, max_day]
-    
     @app.callback(
         [Output('overall-graph', 'figure'),
          Output('company-graph', 'figure'),
          Output('company-pie', 'figure'),
          Output('type-pie', 'figure'),
          Output('income-company-pie', 'figure')],
-        [Input('day-range-slider', 'value'),
+        [Input('stored-data', 'data'),
+         Input('day-range-slider', 'value'),
          Input('company-filter', 'value'),
          Input('type-filter', 'value')]
     )
-    def update_graphs(day_range, selected_companies, selected_types):
-        # Apply filters
+    def update_graphs(json_data, day_range, selected_companies, selected_types):
+        if not json_data:
+            raise PreventUpdate
+            
+        df = pd.read_json(io.StringIO(json_data), orient='split')
+        
         filtered_df = df[
             (df['Day'] >= day_range[0]) & 
             (df['Day'] <= day_range[1]) & 
@@ -333,6 +263,7 @@ def create_app(df) -> Dash:
             height=400
         )
         
+        # Type pie chart
         expenses_by_type = filtered_df[filtered_df['IncomeOrExpense'] == 'Expense'].groupby('Type')['Amount'].sum()
         type_pie = px.pie(
             values=expenses_by_type.values,
@@ -358,9 +289,145 @@ def create_app(df) -> Dash:
         
         return type_fig, company_fig, company_pie, type_pie, income_company_pie
 
+    @app.callback(
+        [Output('company-filter', 'value', allow_duplicate=True),
+         Output('type-filter', 'value', allow_duplicate=True)],
+        [Input('select-all-companies', 'n_clicks'),
+         Input('unselect-all-companies', 'n_clicks'),
+         Input('select-all-types', 'n_clicks'),
+         Input('unselect-all-types', 'n_clicks')],
+        [State('company-filter', 'options'),
+         State('type-filter', 'options')],
+        prevent_initial_call=True
+    )
+    def update_all_filters(comp_select_clicks, comp_unselect_clicks, 
+                         type_select_clicks, type_unselect_clicks,
+                         company_options, type_options):
+        if not company_options or not type_options:
+            raise PreventUpdate
+            
+        ctx = callback_context
+        if not ctx.triggered:
+            raise PreventUpdate
+            
+        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        
+        if button_id == "select-all-companies":
+            return [option['value'] for option in company_options], dash.no_update
+        elif button_id == "unselect-all-companies":
+            return [], dash.no_update
+        elif button_id == "select-all-types":
+            return dash.no_update, [option['value'] for option in type_options]
+        else:  # unselect-all-types
+            return dash.no_update, []
+
+    @app.callback(
+        Output('day-range-slider', 'value', allow_duplicate=True),
+        [Input('last-day-button', 'n_clicks'),
+         Input('last-week-button', 'n_clicks'),
+         Input('all-time-button', 'n_clicks'),
+         Input('stored-data', 'data')],
+        prevent_initial_call=True
+    )
+    def update_range_slider(*args):
+        if not args[-1]:  # Check if data is loaded (stored-data is not None)
+            raise PreventUpdate
+            
+        ctx = callback_context
+        if not ctx.triggered:
+            raise PreventUpdate
+        
+        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        
+        df = pd.read_json(io.StringIO(args[-1]), orient='split')
+        min_day = df['Day'].min()
+        max_day = df['Day'].max()
+        
+        if button_id == 'last-day-button':
+            return [max_day - 1, max_day - 1]
+        elif button_id == 'last-week-button':
+            return [max(min_day, max_day - 8), max_day - 1]
+        else:  # all-time-button
+            return [min_day, max_day]
+
+    # The main update_data callback (for file upload) stays the same
+    @app.callback(
+        [Output('stored-data', 'data'),
+         Output('upload-status', 'children'),
+         Output('sidebar-controls', 'style'),
+         Output('day-range-slider', 'min'),
+         Output('day-range-slider', 'max'),
+         Output('day-range-slider', 'value'),
+         Output('day-range-slider', 'marks'),
+         Output('company-filter', 'options'),
+         Output('company-filter', 'value'),
+         Output('type-filter', 'options'),
+         Output('type-filter', 'value')],
+        Input('upload-data', 'contents'),
+        State('upload-data', 'filename')
+    )
+    def update_data(contents, filename):
+        if contents is None:
+            raise PreventUpdate
+
+        if not filename.endswith('.csv'):
+            return [None, html.Div('Please upload a CSV file', style={'color': 'red'}),
+                   {'display': 'none'}, 0, 1, [0, 1], {}, [], [], [], []]
+
+        try:
+            content_type, content_string = contents.split(',')
+            decoded = base64.b64decode(content_string)
+            df = pd.read_csv(io.StringIO(decoded.decode('utf-8')),
+                           names=['Description', 'Day', 'Type', 'Amount', 'ID'],
+                           quotechar='"',
+                           encoding='utf-8')
+            
+            # Process the DataFrame
+            df = df.apply(lambda x: x.str.strip() if isinstance(x, str) else x)
+            df['Day'] = pd.to_numeric(df['Day'])
+            df['Amount'] = pd.to_numeric(df['Amount'])
+            df['IncomeOrExpense'] = df['Amount'].apply(lambda x: 'Income' if x > 0 else 'Expense')
+            df['Amount'] = df['Amount'].abs()
+            df['Company'] = 'Other'
+            
+            companies_dict = get_companies(df)
+            
+            for company, keywords in companies_dict.items():
+                mask = df['Description'].str.lower().str.contains('|'.join(keywords), case=False)
+                df.loc[mask, 'Company'] = company
+            
+            df = df[['Description', 'Company', 'Day', 'Type', 'Amount', 'IncomeOrExpense']]
+            
+            # Prepare filter options
+            min_day = df['Day'].min()
+            max_day = df['Day'].max()
+            all_companies = sorted(df['Company'].unique())
+            all_types = sorted(df['Type'].unique())
+            
+            company_options = [{'label': " " + comp, 'value': comp} for comp in all_companies]
+            type_options = [{'label': " " + type_, 'value': type_} for type_ in all_types]
+            
+            marks = {i: str(i) for i in range(min_day, max_day + 1, 5)}
+            
+            return [
+                df.to_json(date_format='iso', orient='split'),
+                html.Div('File uploaded successfully!', style={'color': 'green'}),
+                {'display': 'block'},
+                min_day,
+                max_day,
+                [min_day, max_day],
+                marks,
+                company_options,
+                all_companies,
+                type_options,
+                all_types
+            ]
+            
+        except Exception as e:
+            return [None, html.Div(f'Error processing file: {str(e)}', style={'color': 'red'}),
+                   {'display': 'none'}, 0, 1, [0, 1], {}, [], [], [], []]
     return app
 
 if __name__ == '__main__':
-    df = load_and_process_data("./Transactions.csv")
-    app = create_app(df)
-    app.run_server(debug=False, port=80, host='0.0.0.0')
+    app = create_app()
+    app.run_server(debug=True, port=80, host='0.0.0.0')
