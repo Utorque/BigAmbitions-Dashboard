@@ -94,7 +94,30 @@ def create_app() -> Dash:
         ),
         html.Div(id='upload-status', className="mb-3"),
         
-        html.Hr(),
+        html.Div([
+            html.Hr(),
+            html.P("Made with ❤️ by Utorque", className="text-secondary"),
+            html.A(
+                html.Div([
+                    html.I(className="fab fa-github me-2"),  # GitHub icon
+                    "View on GitHub"
+                ], className="d-flex align-items-center"),
+                href="https://github.com/Utorque/BigCompany-Analysis/",
+                target="_blank",
+                className="btn btn-outline-dark mb-2 w-100"
+            ),
+            html.A(
+                html.Div([
+                    html.I(className="fab fa-paypal me-2"),  # PayPal icon
+                    "Support me on PayPal :)"
+                ], className="d-flex align-items-center"),
+                href="https://www.paypal.com/paypalme/ThibBart",
+                target="_blank",
+                className="btn btn-outline-primary w-100"
+            ),
+            html.Hr()
+        ], className="mt-auto p-3"),  # mt-auto will push it to bottom if in a flex container
+        
         
         # Controls section - initially hidden
         html.Div(id='sidebar-controls', style={'display': 'none'}, children=[
