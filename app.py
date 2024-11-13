@@ -65,6 +65,8 @@ def create_app() -> Dash:
                external_stylesheets=[dbc.themes.BOOTSTRAP],
                title='Big Ambitions Dashboard')
     
+    app._favicon = "favicon.ico"
+    
     # File upload component styling
     upload_style = {
         'width': '100%',
@@ -92,9 +94,8 @@ def create_app() -> Dash:
             style=upload_style,
             multiple=False
         ),
-        html.Div(id='upload-status', className="mb-3"),
-        
         html.Div([
+            html.P(id='upload-status', className="mb-3", style={'margin': '0', 'padding': '0'}),
             html.Hr(),
             html.P("Made with ❤️ by Utorque", className="text-secondary"),
             html.A(
@@ -102,19 +103,19 @@ def create_app() -> Dash:
                     html.I(className="fab fa-github me-2"),  # GitHub icon
                     "View on GitHub"
                 ], className="d-flex align-items-center"),
-                href="https://github.com/Utorque/BigCompany-Analysis/",
+                href="https://github.com/Utorque/BigAmbitions-Dashboard/",
                 target="_blank",
                 className="btn btn-outline-dark mb-2 w-100"
             ),
-            html.A(
-                html.Div([
-                    html.I(className="fab fa-paypal me-2"),  # PayPal icon
-                    "Support me on PayPal :)"
-                ], className="d-flex align-items-center"),
-                href="https://www.paypal.com/paypalme/ThibBart",
-                target="_blank",
-                className="btn btn-outline-primary w-100"
-            ),
+            # html.A(
+            #     html.Div([
+            #         html.I(className="fab fa-paypal me-2"),  # PayPal icon
+            #         "Support me on PayPal :)"
+            #     ], className="d-flex align-items-center"),
+            #     href="https://www.paypal.com/paypalme/ThibBart",
+            #     target="_blank",
+            #     className="btn btn-outline-primary w-100"
+            # ),
             html.Hr()
         ], className="mt-auto p-3"),  # mt-auto will push it to bottom if in a flex container
         
@@ -166,7 +167,8 @@ def create_app() -> Dash:
                 className="mb-4",
                 labelStyle={'display': 'block', 'margin-bottom': '0.1rem'}
             ),
-        ])
+        ]),
+            html.A("Ambition icons created by Karyative - Flaticon", href="https://www.flaticon.com/free-icons/ambition", target="_blank", className="text-secondary"),
     ], style=SIDEBAR_STYLE)
 
     # Create main content
