@@ -4,12 +4,67 @@ from dash import Dash, html, dcc, Input, Output, State, callback_context
 import dash
 import dash_bootstrap_components as dbc
 
-# Simplified category mapping for companies only
-COMPANIES = {
-    "Best Websites Ever": ["best websites ever"],
-    "Best Jewelery": ["best jewelery"],
-    "Luxury Clothes": ["luxury clothes"],
-    "Best Inc": ["best inc"]
+companies_dict = None
+
+import pandas as pd
+import re
+
+def get_companies(df):
+    """
+    Extract company names and return a dictionary mapping company names to their lowercase variants.
+    
+    Parameters:
+    df (pandas.DataFrame): DataFrame with transaction data
+    
+    Returns:
+    dict: Dictionary mapping company names to list containing lowercase variant
+    """
+    # Get revenue-generating companies first
+    revenue_companies = set()
+    revenue_entries = df[
+        (df['Amount'] > 0) &
+        (df['Description'].str.contains('Revenue'))
+    ]
+    for description in revenue_entries['Description']:
+        company_name = description.split(' Revenue')[0].strip()
+        if company_name:
+            revenue_companies.add(company_name)
+    
+    # Find headquarters from wage descriptions
+    headquarters = set()
+    wage_entries = df[df['Description'].str.contains('Daily Wage')]
+    
+    for description in wage_entries['Description']:
+        match = re.search(r'\((.*?) Daily Wage\)', description)
+        if match:
+            company = match.group(1).strip()
+            if company == 'Best Inc':
+                headquarters.add(company)
+    
+    # Combine all companies
+    all_companies = revenue_companies.union(headquarters)
+    
+    # Create the new dictionary format
+    return {
+        company: [company.lower()]
+        for company in all_companies
+    }
+
+# Add custom CSS for the sidebar
+SIDEBAR_STYLE = {
+    "position": "fixed",
+    "top": 0,
+    "left": 0,
+    "bottom": 0,
+    "width": "300px",
+    "padding": "2rem 1rem",
+    "background-color": "#f8f9fa",
+    "overflow-y": "auto",  # Make sidebar scrollable
+}
+
+CONTENT_STYLE = {
+    "margin-left": "320px",
+    "padding": "2rem 1rem",
 }
 
 def load_and_process_data(csv_path):
@@ -34,8 +89,11 @@ def load_and_process_data(csv_path):
         # Add Company column with default 'Other'
         df['Company'] = 'Other'
         
+        global companies_dict
+        companies_dict = get_companies(df)
+        
         # Categorize companies
-        for company, keywords in COMPANIES.items():
+        for company, keywords in companies_dict.items():
             mask = df['Description'].str.lower().str.contains('|'.join(keywords), case=False)
             df.loc[mask, 'Company'] = company
         
@@ -58,78 +116,60 @@ def create_app(df) -> Dash:
     all_companies = sorted(df['Company'].unique())
     all_types = sorted(df['Type'].unique())
 
-    # Create filter section
-    filter_section = dbc.Card([
-        dbc.CardBody([
-            dbc.Row([
-                dbc.Col([
-                    html.H6("Companies"),
-                    dbc.ButtonGroup([
-                        dbc.Button("Select All", id="select-all-companies", color="primary", size="sm", className="me-2"),
-                        dbc.Button("Unselect All", id="unselect-all-companies", color="primary", size="sm"),
-                    ], className="mb-2"),
-                    dcc.Checklist(
-                        id='company-filter',
-                        options=[{'label': " " + comp, 'value': comp} for comp in all_companies],
-                        value=all_companies,
-                        inline=False,
-                        className="ms-2"
-                    )
-                ], width=6),
-                dbc.Col([
-                    html.H6("Types"),
-                    dbc.ButtonGroup([
-                        dbc.Button("Select All", id="select-all-types", color="primary", size="sm", className="me-2"),
-                        dbc.Button("Unselect All", id="unselect-all-types", color="primary", size="sm"),
-                    ], className="mb-2"),
-                    dcc.Checklist(
-                        id='type-filter',
-                        options=[{'label': " " + type_, 'value': type_} for type_ in all_types],
-                        value=all_types,
-                        inline=False,
-                        className="ms-2"
-                    )
-                ], width=6)
+    # Create sidebar
+    sidebar = html.Div([
+        html.H2("Financial Dashboard", className="display-6 mb-4"),
+        html.Hr(),
+        
+        html.H6("Time Range", className="mt-4"),
+        dbc.ButtonGroup([
+            dbc.Button("Last Day", id="last-day-button", color="primary", size="sm", className="me-1"),
+            dbc.Button("Last Week", id="last-week-button", color="primary", size="sm", className="me-1"),
+            dbc.Button("All Time", id="all-time-button", color="primary", size="sm"),
+        ], className="mb-3 d-flex"),
+        
+        dbc.Card([
+            dbc.CardBody([
+                dcc.RangeSlider(
+                    id='day-range-slider',
+                    min=min_day,
+                    max=max_day,
+                    value=[min_day, max_day],
+                    marks={i: str(i) for i in range(min_day, max_day + 1, 5)},
+                    step=1
+                )
             ])
-        ])
-    ], className="mb-4")
+        ], className="mb-4"),
+        
+        html.H6("Companies"),
+        dbc.ButtonGroup([
+            dbc.Button("Select All", id="select-all-companies", color="primary", size="sm", className="me-1"),
+            dbc.Button("Unselect All", id="unselect-all-companies", color="primary", size="sm"),
+        ], className="mb-2 d-flex"),
+        dcc.Checklist(
+            id='company-filter',
+            options=[{'label': " " + comp, 'value': comp} for comp in all_companies],
+            value=all_companies,
+            className="mb-4",
+            labelStyle={'display': 'block', 'margin-bottom': '0.5rem'}
+        ),
+        
+        html.H6("Types"),
+        dbc.ButtonGroup([
+            dbc.Button("Select All", id="select-all-types", color="primary", size="sm", className="me-1"),
+            dbc.Button("Unselect All", id="unselect-all-types", color="primary", size="sm"),
+        ], className="mb-2 d-flex"),
+        dcc.Checklist(
+            id='type-filter',
+            options=[{'label': " " + type_, 'value': type_} for type_ in all_types],
+            value=all_types,
+            className="mb-4",
+            labelStyle={'display': 'block', 'margin-bottom': '0.5rem'}
+        ),
+    ], style=SIDEBAR_STYLE)
 
-    app.layout = dbc.Container([
-        dbc.Row([
-            dbc.Col(html.H1("Financial Dashboard", className="text-center my-4"))
-        ]),
-        
-        dbc.Row([
-            dbc.Col([
-                dbc.ButtonGroup([
-                    dbc.Button("Last Day", id="last-day-button", color="primary", className="me-2"),
-                    dbc.Button("Last Week", id="last-week-button", color="primary", className="me-2"),
-                    dbc.Button("All Time", id="all-time-button", color="primary"),
-                ], className="mb-3")
-            ])
-        ]),
-        
-        dbc.Row([
-            dbc.Col(filter_section)
-        ]),
-        
-        dbc.Row([
-            dbc.Col([
-                dbc.Card([
-                    dbc.CardBody([
-                        dcc.RangeSlider(
-                            id='day-range-slider',
-                            min=min_day,
-                            max=max_day,
-                            value=[min_day, max_day],
-                            marks={i: str(i) for i in range(min_day, max_day + 1, 5)},
-                            step=1
-                        )
-                    ])
-                ], className="mb-4")
-            ])
-        ]),
-        
+    # Create main content
+    content = html.Div([
         dbc.Row([
             dbc.Col([
                 dbc.Card([
@@ -173,7 +213,9 @@ def create_app(df) -> Dash:
                 ])
             ], width=4)
         ])
-    ], fluid=True)
+    ], style=CONTENT_STYLE)
+
+    app.layout = html.Div([sidebar, content])
     
     @app.callback(
         Output('company-filter', 'value'),
@@ -319,6 +361,6 @@ def create_app(df) -> Dash:
     return app
 
 if __name__ == '__main__':
-    df = load_and_process_data(r"./Transactions.csv")
+    df = load_and_process_data("./Transactions.csv")
     app = create_app(df)
     app.run_server(debug=False, port=80, host='0.0.0.0')
