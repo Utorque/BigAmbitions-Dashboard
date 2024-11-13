@@ -48,7 +48,7 @@ def load_and_process_data(csv_path):
         print(f"Error loading CSV file: {str(e)}")
         return None
 
-def create_app(df):
+def create_app(df) -> Dash:
     app = Dash(__name__, 
                external_stylesheets=[dbc.themes.BOOTSTRAP],
                title='Financial Analysis')
@@ -319,6 +319,6 @@ def create_app(df):
     return app
 
 if __name__ == '__main__':
-    df = load_and_process_data(r"C:\Users\Thibault\AppData\LocalLow\Hovgaard Games\Big Ambitions\SaveGames\EA 0.6\7BT1vEwZVEGXpXoAL250wQ==\Transactions.csv")
+    df = load_and_process_data(r"./Transactions.csv")
     app = create_app(df)
-    app.run_server(debug=True)
+    app.run_server(debug=False, port=80, host='0.0.0.0')

@@ -3,3 +3,4 @@ dash
 pandas
 nbformat>=4.2.0
 ipykernel
+dash-bootstrap-components
