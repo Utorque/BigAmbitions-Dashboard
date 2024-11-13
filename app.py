@@ -63,7 +63,7 @@ def get_companies(df):
 def create_app() -> Dash:
     app = Dash(__name__, 
                external_stylesheets=[dbc.themes.BOOTSTRAP],
-               title='Financial Analysis')
+               title='Big Ambitions Dashboard')
     
     # File upload component styling
     upload_style = {
@@ -80,7 +80,7 @@ def create_app() -> Dash:
 
     # Create sidebar
     sidebar = html.Div([
-        html.H2("Financial Dashboard", className="display-6 mb-4"),
+        html.H2("Big Ambitions Dashboard", className="display-6 mb-4"),
         
         # Add upload component
         dcc.Upload(
@@ -128,7 +128,7 @@ def create_app() -> Dash:
                 options=[],
                 value=[],
                 className="mb-4",
-                labelStyle={'display': 'block', 'margin-bottom': '0.5rem'}
+                labelStyle={'display': 'block', 'margin-bottom': '0.1rem'}
             ),
             
             html.H6("Types"),
@@ -141,7 +141,7 @@ def create_app() -> Dash:
                 options=[],
                 value=[],
                 className="mb-4",
-                labelStyle={'display': 'block', 'margin-bottom': '0.5rem'}
+                labelStyle={'display': 'block', 'margin-bottom': '0.1rem'}
             ),
         ])
     ], style=SIDEBAR_STYLE)
@@ -152,17 +152,14 @@ def create_app() -> Dash:
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
-                        dcc.Graph(id='overall-graph')
+                        dcc.Graph(id='overall-graph', config={"displayModeBar": False})
                     ])
                 ])
-            ])
-        ], className="mb-4"),
-
-        dbc.Row([
+            ]),
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
-                        dcc.Graph(id='company-graph')
+                        dcc.Graph(id='company-graph', config={"displayModeBar": False})
                     ])
                 ])
             ])
@@ -172,21 +169,21 @@ def create_app() -> Dash:
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
-                        dcc.Graph(id='company-pie')
+                        dcc.Graph(id='company-pie', config={"displayModeBar": False})
                     ])
                 ])
             ], width=4),
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
-                        dcc.Graph(id='type-pie')
+                        dcc.Graph(id='type-pie', config={"displayModeBar": False})
                     ])
                 ])
             ], width=4),
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
-                        dcc.Graph(id='income-company-pie')
+                        dcc.Graph(id='income-company-pie', config={"displayModeBar": False})
                     ])
                 ])
             ], width=4)
@@ -223,32 +220,43 @@ def create_app() -> Dash:
             (df['Type'].isin(selected_types))
         ]
         
-        # Overall stacked bar chart by Type
+        type_grouped = filtered_df.groupby(['IncomeOrExpense', 'Type'])['Amount'].sum().reset_index()
+        # Create a sorting index for each IncomeOrExpense group
+        type_grouped['SortOrder'] = type_grouped.groupby('IncomeOrExpense')['Amount'].rank(ascending=False)
+        type_grouped = type_grouped.sort_values(['IncomeOrExpense', 'SortOrder'])
+        
         type_fig = px.bar(
-            filtered_df.groupby(['IncomeOrExpense', 'Type'])['Amount'].sum().reset_index(),
+            type_grouped,
             x="IncomeOrExpense",
             y="Amount",
             color="Type",
             barmode="stack",
-            title="Income and Expenses by Type"
+            title="Income and Expenses by Type",
+            category_orders={"Type": type_grouped['Type'].unique()}
         )
         type_fig.update_layout(
             margin=dict(t=30, b=0, l=0, r=0),
-            height=400
+            height=375
         )
 
-        # Stacked bar chart by Company
+        # For Company stacked bar - sort by Amount within each IncomeOrExpense category
+        company_grouped = filtered_df.groupby(['IncomeOrExpense', 'Company'])['Amount'].sum().reset_index()
+        # Create a sorting index for each IncomeOrExpense group
+        company_grouped['SortOrder'] = company_grouped.groupby('IncomeOrExpense')['Amount'].rank(ascending=False)
+        company_grouped = company_grouped.sort_values(['IncomeOrExpense', 'SortOrder'])
+        
         company_fig = px.bar(
-            filtered_df.groupby(['IncomeOrExpense', 'Company'])['Amount'].sum().reset_index(),
+            company_grouped,
             x="IncomeOrExpense",
             y="Amount",
             color="Company",
             barmode="stack",
-            title="Income and Expenses by Company"
+            title="Income and Expenses by Company",
+            category_orders={"Company": company_grouped['Company'].unique()}
         )
         company_fig.update_layout(
             margin=dict(t=30, b=0, l=0, r=0),
-            height=400
+            height=375
         )
         
         # Company pie chart (expenses only)
@@ -260,7 +268,7 @@ def create_app() -> Dash:
         )
         company_pie.update_layout(
             margin=dict(t=30, b=0, l=0, r=0),
-            height=400
+            height=375
         )
         
         # Type pie chart
@@ -272,7 +280,7 @@ def create_app() -> Dash:
         )
         type_pie.update_layout(
             margin=dict(t=30, b=0, l=0, r=0),
-            height=400
+            height=375
         )
         
         # Income by Company pie chart
@@ -284,7 +292,7 @@ def create_app() -> Dash:
         )
         income_company_pie.update_layout(
             margin=dict(t=30, b=0, l=0, r=0),
-            height=400
+            height=375
         )
         
         return type_fig, company_fig, company_pie, type_pie, income_company_pie
