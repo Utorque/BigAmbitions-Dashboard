@@ -26,7 +26,7 @@ The easiest way to use the dashboard is through the hosted version at:
   - Income sources analysis
 
 ![Filters](assets/filters.png)
-
+  
 ## 🎮 How to Use
 
 1. In Big Ambitions, click on your money to open the "Detailed Transactions" view
@@ -83,5 +83,4 @@ If you find this tool useful, consider supporting the development:
 This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## 🙏 Acknowledgments
-
 - [claude.ai](https://claude.ai) was used and abused during the making of this project

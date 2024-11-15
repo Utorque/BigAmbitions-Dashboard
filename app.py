@@ -63,6 +63,7 @@ def get_companies(df):
 def create_app() -> Dash:
     app = Dash(__name__, 
                external_stylesheets=[dbc.themes.BOOTSTRAP],
+               url_base_pathname='/',
                title='Big Ambitions Dashboard')
     
     app._favicon = "favicon.ico"
@@ -463,4 +464,4 @@ def create_app() -> Dash:
 
 if __name__ == '__main__':
     app = create_app()
-    app.run_server(debug=False, port=80, host='0.0.0.0')
+    app.run_server(debug=False, port=8050, host='0.0.0.0')
