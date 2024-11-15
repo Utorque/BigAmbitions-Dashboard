@@ -181,14 +181,14 @@ def create_app() -> Dash:
                         dcc.Graph(id='overall-graph', config={"displayModeBar": False})
                     ])
                 ])
-            ]),
+            ], width=6),
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
                         dcc.Graph(id='company-graph', config={"displayModeBar": False})
                     ])
                 ])
-            ])
+            ],width=6)
         ], className="mb-4"),
         
         dbc.Row([
